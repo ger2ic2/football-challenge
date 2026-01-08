@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Football Name Rush</title>
+<style>
+body{margin:0;font-family:Inter,Segoe UI,Arial;background:linear-gradient(135deg,#020617,#020617 40%,#064e3b);color:#e5e7eb}
+header{padding:18px;border-bottom:1px solid #1f2933;background:rgba(2,6,23,.9);backdrop-filter:blur(6px)}
+h1{margin:0;font-size:26px}
+.sub{font-size:13px;opacity:.85}
+.container{max-width:1000px;margin:24px auto;padding:16px}
+.card{background:rgba(2,6,23,.88);border:1px solid #1f2933;border-radius:22px;padding:22px;margin-bottom:20px;box-shadow:0 20px 50px rgba(0,0,0,.55)}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+input,textarea,button{background:#020617;color:#e5e7eb;border:1px solid #1f2933;border-radius:16px;padding:14px;font-size:15px}
+textarea{width:100%;height:150px}
+button{cursor:pointer;font-weight:800;background:linear-gradient(135deg,#22c55e,#16a34a);border:none}
+.secondary{background:#374151}
+.mic{background:linear-gradient(135deg,#2563eb,#22c55e)}
+.stats{display:flex;gap:18px;font-weight:900}
+.timer{font-size:30px}
+.score{font-size:22px}
+.pill{padding:8px 14px;border-radius:999px;background:#022c22;font-size:13px;border:1px solid #064e3b}
+.leaderboard li{padding:8px 0;border-bottom:1px dashed #1f2933}
+.disclaimer{font-size:13px;line-height:1.5;opacity:.9;background:#020617;border:1px dashed #064e3b;border-radius:14px;padding:14px}
+footer{text-align:center;font-size:12px;opacity:.6;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ Football Name Rush</h1>
+  <div class="sub">3 minutes • Type or speak football players</div>
+</header>
+
+<div class="container">
+
+<div class="card">
+  <div class="row">
+    <div class="row">
+      <input id="username" placeholder="Username">
+      <span class="pill">3:00 Challenge</span>
+    </div>
+    <div class="stats">
+      <div class="timer">⏱ <span id="time">180</span>s</div>
+      <div class="score">Score: <span id="score">0</span></div>
+    </div>
+  </div>
+
+  <textarea id="input" placeholder="Enter player names (first OR last name allowed)…" disabled></textarea>
+
+  <div class="row" style="margin-top:14px">
+    <button id="start">Start</button>
+    <button id="mic" class="mic">🎤 Speak</button>
+    <button id="reset" class="secondary">Reset</button>
+  </div>
+</div>
+
+<div class="card">
+  <h3>📢 Disclaimer</h3>
+  <div class="disclaimer">
+    • You may enter a <strong>full name, first name, or last name</strong> of any football player.<br>
+    • <strong>No nicknames</strong> (e.g., CR7, MessiGOAT) are allowed.<br>
+    • Names must be spoken <strong>clearly and individually</strong> when using the microphone.<br>
+    • Duplicate names are counted only once.<br>
+    • Stadium sound plays during active rounds.
+  </div>
+</div>
+
+<div class="card">
+  <h3>🏆 Leaderboard</h3>
+  <ol id="board" class="leaderboard"></ol>
+</div>
+
+<footer>Voice uses browser speech recognition • Created by You</footer>
+</div>
+
+<audio id="crowd" loop>
+  <source src="https://actions.google.com/sounds/v1/crowds/large_crowd_cheer.ogg" type="audio/ogg">
+</audio>
+
+<script>
+// ===== TIMER & STATE =====
+let timeLeft=180,timer=null;
+const input=document.getElementById('input');
+const timeEl=document.getElementById('time');
+const scoreEl=document.getElementById('score');
+const board=document.getElementById('board');
+const crowd=document.getElementById('crowd');
+
+// Nickname blacklist (simple auto-check)
+const banned=['cr7','goat','ronaldo7','messi10','king','legend'];
+
+function isValidName(name){
+  if(name.length<3) return false;
+  if(banned.includes(name.replace(/\s+/g,''))) return false;
+  return /^[a-zA-Z\s.'-]+$/.test(name);
+}
+
+function countNames(){
+  const names=input.value
+    .toLowerCase()
+    .split(/\n|,/)
+    .map(n=>n.trim())
+    .filter(isValidName);
+  const unique=[...new Set(names)];
+  scoreEl.textContent=unique.length;
+  return unique.length;
+}
+
+function saveScore(user,score){
+  const data=JSON.parse(localStorage.getItem('footballBoardV2')||'[]');
+  data.push({user,score});
+  data.sort((a,b)=>b.score-a.score);
+  localStorage.setItem('footballBoardV2',JSON.stringify(data.slice(0,10)));
+  renderBoard();
+}
+
+function renderBoard(){
+  board.innerHTML='';
+  const data=JSON.parse(localStorage.getItem('footballBoardV2')||'[]');
+  if(!data.length){board.innerHTML='<li>No scores yet</li>';return;}
+  data.forEach(d=>{
+    const li=document.createElement('li');
+    li.textContent=`${d.user} — ${d.score}`;
+    board.appendChild(li);
+  });
+}
+
+// ===== CONTROLS =====
+document.getElementById('start').onclick=()=>{
+  if(timer) return;
+  input.value='';scoreEl.textContent='0';
+  timeLeft=180;timeEl.textContent=180;
+  input.disabled=false;input.focus();
+  crowd.volume=0.4; crowd.play();
+  timer=setInterval(()=>{
+    timeLeft--;timeEl.textContent=timeLeft;
+    if(timeLeft<=0){
+      clearInterval(timer);timer=null;input.disabled=true;
+      crowd.pause(); crowd.currentTime=0;
+      const user=document.getElementById('username').value||'Anonymous';
+      saveScore(user,countNames());
+    }
+  },1000);
+};
+
+document.getElementById('reset').onclick=()=>{
+  if(timer){clearInterval(timer);timer=null;}
+  crowd.pause(); crowd.currentTime=0;
+  input.disabled=true;input.value='';scoreEl.textContent='0';
+  timeLeft=180;timeEl.textContent='180';
+};
+
+input.addEventListener('input',countNames);
+
+// ===== MICROPHONE =====
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null;
+if(SpeechRecognition){
+  recognition=new SpeechRecognition();
+  recognition.lang='en-US';
+  recognition.continuous=true;
+  recognition.interimResults=false;
+  recognition.onresult=(e)=>{
+    const text=e.results[e.results.length-1][0].transcript;
+    input.value+=(input.value.trim()? '\n':'')+text;
+    countNames();
+  };
+}
+
+document.getElementById('mic').onclick=()=>{
+  if(!recognition){alert('Speech recognition not supported');return;}
+  recognition.start();
+};
+
+renderBoard();
+</script>
+</body>
+</html>
